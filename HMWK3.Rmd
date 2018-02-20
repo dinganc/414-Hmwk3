@@ -1,0 +1,108 @@
+---
+title: "HMWK3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Prepared by Derek Chen, Justin Zipkin
+###load data
+```{r}
+library("dplyr")
+library("ggplot2")
+bike=read.csv("citibike.csv")
+```
+
+###The citibike management is trying to understand their traffic patters. They have hired you to answer a few basic questions based on the data. You are asked to help CitiBike management by calculating relevant numbers and more importantly, building relevant charts.
+
+###1. How are male and female ridership patterns different? Do they have different ride duration? Do they have different ride length (distance)? 
+
+```{r}
+library(geosphere)#for calculating distance
+bike$distance <- distHaversine(bike[ ,c("start.station.longitude", "start.station.latitude")],bike[ ,c("end.station.longitude", "end.station.latitude")])
+bike$gender=factor(bike$gender,levels=c(0,1,2),labels=c("unkown","male","female"))
+
+ggplot(data = bike, aes(x=gender,y=distance,color=gender))+geom_jitter()+ggtitle("Distance by Gender")
+ggplot(data = bike, aes(x=gender,y=tripduration,color=gender))+geom_jitter()+ggtitle("Trip Duration by Gender")
+ggplot(data = bike, aes(x=gender,y=distance,color=gender))+geom_boxplot()+ggtitle("Distance by Gender")+ylim(-10,7000)
+ggplot(data = bike, aes(x=gender,y=tripduration,color=gender))+geom_boxplot()+ggtitle("Trip Duration by Gender")+ylim(-10,4000)
+```
+#####Female group has a higher trip duration than the male group on average, and male group has a higher trip distance than the female group. Note that the distance is calculated as the distance between the start station and end station. Therefore, it is more accurate to say that female rider group usualy rent the bike and return the bike to a closer station from the starting station than the male group.
+#####Also, based on the jitter chart, there is more male riders than the female riders.
+
+###2. How does the overall level of traffic in the system changes with time of the day and day of the week? Is traffic pattern different during weekdays and weekends (Sat + Sun)?
+```{r}
+bike$start.time.of.day=factor(format(strptime(bike$starttime,format = "%m/%d/%Y %H:%M"),"%H"))
+bike$end.time.of.day=factor(format(strptime(bike$stoptime,format = "%m/%d/%Y %H:%M"),"%H"))
+bike$day.of.week=factor(weekdays(strptime(bike$stoptime,format = "%m/%d/%Y %H:%M")),levels=c("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"),labels=c("Mon","Tues","Wed","Thurs","Fri","Sat","Sun"))
+```
+
+```{r}
+barplot(table(filter(bike,day.of.week=="Sun"|day.of.week=="Sat")$start.time.of.day),main = "Start Time in the Weekend",ylab="Number of Rides for the Year", xlab="Hour of Departure",cex.names  = 0.7)
+barplot(table(filter(bike,day.of.week!="Sun"& day.of.week!="Sat")$start.time.of.day),main = "Start Time in the Weekday",ylab="Number of Rides for the Year", xlab="Hour of Departure",cex.names  = 0.7)
+barplot(table(bike$day.of.week),main = "Rides by Day of the Week",ylab="Number of Rides for the Year", xlab="Day of Ride",cex.names  = 0.7)
+```
+#####The ride distribution is unimodal during the weekend and bimodal during the weekdays. This is because during the weekdays, people are using the bikes as a way to commute to and from work, thus there are two usage peaks around 8 in the morning and 6 in the afternoon. During the weekend, the rides are peaked at around 1 in the afternoon, this might corresponds to more people choose to go out in the afternoons of the weekends.
+#####Wednesday also seems to have the most number of rides than the rest of the week, with Monday having the lowest level of rides. This might be summarized as "during the weekdays, the closer it is to the weekends, the lesslikely you will ride a citi bike." My hypothesis is that people are most likely to take a train or taxi in Monday morning because they are still recovering from the weekends' activities.
+
+###3. Which stations are most popular (number of rides per minute) at different times of the day?
+```{r}
+print(sort(table(bike$start.station.name), decreasing=TRUE)[1:10])
+```
+#####The most popular stations to start a ride, overall regardless of time, is the 8th Avenue and 31 Street station. This makes sense because it is the downtown Manhattan, with a lot of businesses and offices surrounding it.
+```{r}
+mornings.start=filter(bike,as.numeric(start.time.of.day)>=7,as.numeric(start.time.of.day)<=11)
+evenings.start=filter(bike,as.numeric(start.time.of.day)>=18,as.numeric(start.time.of.day)<=22)
+middays.start=filter(bike,as.numeric(start.time.of.day)>=12,as.numeric(start.time.of.day)<=16)
+
+mornings.end=filter(bike,as.numeric(end.time.of.day)>=7,as.numeric(end.time.of.day)<=11)
+evenings.end=filter(bike,as.numeric(end.time.of.day)>=18,as.numeric(end.time.of.day)<=22)
+middays.end=filter(bike,as.numeric(end.time.of.day)>=12,as.numeric(end.time.of.day)<=16)
+
+sort(table(filter(mornings.start,day.of.week!="Sun"& day.of.week!="Sat")$start.station.name), decreasing=TRUE)[1:10]/(5*60)
+```
+#####In Sunday mornings, the busiest stations to rent a bike are the 8th Ave stations, Pershing Square stations, and Vanderbilt Ave station
+```{r}
+sort(table(filter(mornings.end,day.of.week!="Sun"& day.of.week!="Sat")$end.station.name), decreasing=TRUE)[1:10]/(5*60)
+```
+#####In Sunday mornings, the busiest stations to return a bike are the Lafayette Street station, Park Ave stations, and Broadway station
+#####The busiest renting and returning stations are very different, which implies the citi bike operator might need trucks to move bikes between these two stations in order to balance the supply and demand for bikes
+
+```{r}
+sort(table(filter(evenings.start,day.of.week!="Sun"& day.of.week!="Sat")$start.station.name), decreasing=TRUE)[1:10]/(5*60)
+```
+
+```{r}
+sort(table(filter(evenings.end,day.of.week!="Sun"& day.of.week!="Sat")$end.station.name), decreasing=TRUE)[1:10]/(5*60)
+```
+#####Similar to the trend observed above, the busiest renting station list is very different from the busiest returning station list. The citi bike operator is likely to have to move bikes to balance the supply and demand
+
+```{r}
+sort(table(filter(middays.start,day.of.week=="Sun"| day.of.week=="Sat")$start.station.name), decreasing=TRUE)[1:10]/(5*60)
+```
+
+```{r}
+sort(table(filter(middays.end,day.of.week=="Sun"| day.of.week=="Sat")$end.station.name), decreasing=TRUE)[1:10]/(5*60)
+```
+#####During the weekends, the busiest renting and returning station lists are almost identical. This implies that during the weekends, most stations will have a balanced supply and demand for bikes, because there is an equal amount of people renting out and returning bikes. Thus the operator is less likely to have to move bikes between stations.
+
+###4. Last but most important - can you think of a good question to ask (and provide data/charts in answer) that will provide the CitiBike management with a better view of their ridership or traffic patterns?
+#####Here I want to find a linear relationship between age, gender, interaction between age and gender, and the the ride duration and ride distance
+```{r}
+mo=lm(tripduration~birth.year+gender+birth.year*gender,data = bike)
+summary(mo)
+```
+#####The very large P value suggests that these coefficients are not very good predictor of the riding duration
+```{r}
+mo2=lm(distance~birth.year+gender+birth.year*gender,data = bike)
+summary(mo2)
+```
+#####The very large P value also suggests that these coefficients are not very good predictor of the riding distance. Thus more user information might be needed to predict the ride duration and ride distance
+```{r}
+bike$age=factor(2015-bike$birth.year)
+bike$ageint=2015-bike$birth.year
+ggplot(data = filter(bike,ageint<=70),aes(x=start.time.of.day,y=age))+geom_bin2d()+ scale_fill_gradientn(colours=rainbow(4))
+```
+#####Above is a heatmap for the relationship between riders' age and the starting time of the day. It is a surprise that most riders are around age 34 to 36, instead of a younger population in the 20s. This might suggest that people ride citi bike not to save money, but rather to use it as a way to exercise on the way to work. My hypothesis is that as someone gets older, that person might be more conscious to his/her own health and use citi bike as a way to exercise on the way to work. Knowing this information, the citi bike operator might come up with a more precise pricing scheme that allows maxium profit.
